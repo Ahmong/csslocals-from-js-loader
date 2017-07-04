@@ -1,114 +1,99 @@
-'use strict';
+var loaderUtils = require('loader-utils');
+var _ = require('underscore');
+var path = require('path');
 
-var _loaderUtils = require('loader-utils');
-var _loaderUtils2 = _interopRequireDefault(_loaderUtils).default;
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-(function (global, name, factory) {
-  if (typeof exports === 'object')
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    if (typeof module !== 'undefined') {
-      module.exports = factory();
-  } else if (typeof define === 'function' && (define.amd || define.cmd)) {
-    define(factory);
-  } else {
-    global[name] = factory.apply(this);
-  }
-}(this, "csslocalsFromJsLoader", function() {
-  return loader;
-}));
+module.exports = loader;
 
 function loader(content) {
   try {
-    return csslocalsFromJsLoader.bind(this)(content);
+    return content;
+    // return csslocalsFromJsLoader.bind(this)(content);
   } catch (err) {
-    var errText = "Error in csslocals-from-js-loader/index.js :";
-    console.log(errText);
+    console.log("Error in csslocals-from-js-loader/index.js :");
     console.log(err.stack);
     throw err;
   }
 }
 
+/*
 function csslocalsFromJsLoader(content) {
-  console.log("Begin of csslocalsFromJsLoader(), this=", JSON.stringify(this));
+  console.log("Begin of csslocalsFromJsLoader()");
+  console.log("request=", this.request);
+  console.log("content='''\n", content, "\n'''");
+  var query = _loaderUtils2.getOptions(this) || {};
+
+  var exportKeys = ['locals'];
+  if (query.exports) {
+    if (Array.isArray(query.exports)) {
+      exportKeys = exportKeys.concat(query.exports)
+    } else if (typeof query.exports === 'string') {
+      exportKeys.push(query.exports)
+    }
+  }
 
   if (this.cacheable) this.cacheable();
 
-  var exports = this.exec(content, this.resource);
+  console.log('resourcePath= ', this.resourcePath);
+
+  var exports = this.exec(content, this.resourcePath);
   var exportLocals = {};
 
-  if (exports.locals)
-    exportLocals = JSON.stringify(exports.locals);
+  for (expKey of exportKeys) {
+    if (exports[expKey]) {
+      Object.assign(exportLocals, exports[expKey]);
+    }
+  }
 
-  var result = "exports = module.exports = require(" + _loaderUtils2.stringifyRequest(this, require.resolve("css-loader/lib/css-base.js")) + ")();\n" +
-    "exports.locals = " + exportLocals + "\n";
+  var result = "exports.locals = " + JSON.stringify(exportLocals);
 
-  console.log("result= \n'''\n" + result + "\n'''");
+  console.log("csslocalsFromJsLoader result= '''\n" + result + "\n'''");
   return result;
 }
-
-/*
-
-var _path = require('path');
-var _path2 = _interopRequireDefault(_path);
-
-function rel(p) {
-return _path2.default.relative(process.cwd(), p);
-}
-
-function processResult(loaderContext, result) {
-  if (!result || typeof result !== 'object' || 'code' in result === false) {
-    loaderContext.callback(new Error(`The returned result of module ${rel(loaderContext.resource)} is not an object with a 'code' property.`));
-
-    return;
-  }
-
-  if (typeof result.code !== 'string' && result.code instanceof Buffer === false) {
-    loaderContext.callback(new Error(`The returned code of module ${rel(loaderContext.resource)} is neither a string nor an instance of Buffer.`));
-
-    return;
-  }
-
-  (result.dependencies || []).forEach(function (dep) {
-    return loaderContext.addDependency(dep);
-  });
-  // Defaults to false which is a good default here because we assume that
-  // results tend to be not cacheable when this loader is necessary
-  loaderContext.cacheable(Boolean(result.cacheable));
-
-  loaderContext.callback(null, result.code, result.sourceMap || null, result.ast || null);
-}
-
-
-function valLoader(content) {
-  var _this = this;
-
-  var options = _loaderUtils2.default.getOptions(this);
-  var exports = this.exec(content, this.resource);
-  var func = exports && exports.default ? exports.default : exports;
-
-  if (typeof func !== 'function') {
-    throw new Error(`Module ${rel(this.resource)} does not export a function as default.`);
-  }
-
-  var result = func(options);
-
-  if (result && typeof result.then === 'function') {
-    var callback = this.async();
-
-    result.then(function (res) {
-      return processResult(_this, res);
-    }, callback);
-
-    return;
-  }
-
-  // No return necessary because processResult calls this.callback()
-  processResult(this, result);
-}
-
-exports.default = valLoader;
 */
+
+module.exports.pitch = function(remainingRequest) {
+  console.log('Begin in csslocals-from-js-loader/loader.pitch(), resource= ',
+    path.basename(this.resource));
+  // console.log('remainingRequest=', remainingRequest);
+
+  try {
+    if (this.cacheable) this.cacheable()
+    var request = loaderUtils.stringifyRequest(this, '!!' + remainingRequest)
+    var query = loaderUtils.getOptions(this) || {}
+    // var id = JSON.stringify(hash(request))
+
+    var exportKeys = ['locals'];
+    if (query.exports) {
+      if (Array.isArray(query.exports)) {
+        exportKeys = exportKeys.concat(query.exports)
+      } else if (typeof query.exports === 'string') {
+        exportKeys.push(query.exports)
+      }
+    }
+    exportKeys = _.uniq(exportKeys);
+
+    var resultJs = [
+      '// csslocals-from-js-loader: Exports the locals of a JS file.',
+      '',
+      '// load the JS file',
+      'var content = require(' + request + ');',
+      // content list format is [id, css, media, sourceMap]
+      // "if(typeof content === 'string') content = [[module.id, content, '']];",
+      'var exportLocals = {};',
+      `for (expKey of ${JSON.stringify(exportKeys)}) {`,
+      '  if (content[expKey]) {',
+      '    Object.assign(exportLocals, content[expKey]);',
+      '  }',
+      '}',
+      'exports.locals = exportLocals;'
+      // 'if(content.locals) module.exports = content.locals;'
+    ]
+    var resultStr = resultJs.join('\n')
+    // console.log('resultStr=***\n', resultStr, '\n***');
+    console.log('End of csslocals-from-js-loader/loader.pitch()');
+    return resultStr;
+  } catch (err) {
+    console.log("Error in csslocals-from-js-loader/loader.pitch():");
+    console.log(err.stack)
+  }
+}

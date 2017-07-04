@@ -1,7 +1,7 @@
 {
   "name": "csslocals-from-js-loader",
   "version": "0.1.0",
-  "description": "Transfer js exports.local to css-loader's input format. May be used in :import(...) in css file.",
+  "description": "Transfer css classname-localizedId maps to css-loader's import format.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
